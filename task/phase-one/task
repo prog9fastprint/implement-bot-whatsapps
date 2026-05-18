@@ -1,0 +1,28 @@
+# Phase 1 — Foundation (Steps 1–6)
+
+- [x] **Step 1 — Create Project**
+  - [x] Create `package.json` with ES Modules support (`"type": "module"`)
+  - [x] Create `.gitignore` to protect environment secrets and node modules
+  - [x] Create `.env.example` with template variables
+  - [x] Create local `.env` file
+  - [x] Create entry point `src/index.js` logging server startup
+- [x] **Step 2 — Install Dependencies**
+  - [x] Install Express, Zod, Winston, Axios, Cors, Helmet, PG, Redis, OpenAI, LangChain, etc.
+- [x] **Step 3 — Setup Express Server**
+  - [x] Configure environment validation in `src/config/env.js`
+  - [x] Setup structured logging in `src/middleware/requestLogger.js`
+  - [x] Setup global rate limiting in `src/middleware/rateLimiter.js`
+  - [x] Setup global error handling in `src/middleware/errorHandler.js`
+  - [x] Setup health endpoint `/health` in `src/routes/health.js`
+  - [x] Assemble the app pipeline in `src/app.js`
+  - [x] Update entry point `src/index.js` to run the Express server
+- [x] **Step 4 — WhatsApp Webhook Verification**
+  - [x] Implement HMAC-SHA256 signature verification in `src/middleware/webhookSignature.js`
+  - [x] Create verification endpoint `GET /webhook` and message endpoint `POST /webhook` in `src/routes/webhook.js`
+  - [x] Set up basic WhatsApp API service in `src/services/whatsapp.js`
+- [x] **Step 5 — Receive WhatsApp Messages**
+  - [x] Add Zod schemas in `src/validators/messageValidator.js`
+  - [x] Create parser for WhatsApp payloads in `src/parsers/webhookParser.js`
+  - [x] Create asynchronous routing handler in `src/handlers/messageHandler.js` (including deduplication check skeleton)
+- [x] **Step 6 — Send WhatsApp Replies**
+  - [x] Implement reply methods (`sendTextMessage`, `sendInteractiveList`, `sendInteractiveButtons`, `downloadMedia`) in `src/services/whatsapp.js`
