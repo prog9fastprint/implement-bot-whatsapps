@@ -1,0 +1,24 @@
+# Phase 2 — AI Core & Database (Steps 7–10)
+
+- [x] **Step 7 — OpenAI Integration**
+  - [x] Create `src/services/openai.js` with Chat Completion, Vision, and Whisper wrappers.
+  - [x] Create `src/services/aiRouter.js` as the central orchestrator.
+  - [x] Define bot persona and system prompt in Indonesian for Nike Indonesia.
+- [x] **Step 8 — PostgreSQL Integration**
+  - [x] Setup connection pool in `src/database/client.js`.
+  - [x] Define full relational schema in `database/init.sql` (Users, Conversations, Messages, Products, Orders, etc.).
+  - [x] Implement robust migration script `src/database/migrate.js` with DB auto-creation.
+  - [x] Seed initial product and variant data for Nike sneakers.
+- [x] **Step 9 — Persistent Memory System**
+  - [x] Implement `src/services/memoryService.js` for user/session persistence.
+  - [x] Load long-term facts (preferences, names) and recent history into AI context.
+  - [x] Save every message and tool call to the database for audit and context.
+- [x] **Step 10 — Function Calling System**
+  - [x] Define tool schemas in `src/tools/toolDefinitions.js` (stock, price, order status, complaints).
+  - [x] Implement tool dispatcher in `src/tools/toolDispatcher.js`.
+  - [x] Create business logic services: `src/services/productService.js`, `src/services/orderService.js`, `src/services/complaintService.js`.
+  - [x] Implement autonomous tool-calling loop in `aiRouter.js` (Max 5 turns).
+- [x] **Bonus — Telegram Integration**
+  - [x] Install and configure `Telegraf` as an alternative messaging channel.
+  - [x] Implement `src/services/telegram.js` and `src/handlers/telegramHandler.js`.
+  - [x] Refactor `aiRouter.js` to be multi-channel (WhatsApp + Telegram).

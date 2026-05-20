@@ -2,6 +2,7 @@ import { MetaWebhookSchema, ParsedMessageSchema } from '../validators/messageVal
 import { parseWebhook } from '../parsers/webhookParser.js';
 import { logger, maskPhone } from '../middleware/requestLogger.js';
 import { sendTextMessage } from '../services/whatsapp.js';
+import { routeMessageToAI } from '../services/aiRouter.js';
 
 // In-memory set for deduplicating WhatsApp messages by transaction ID (wamid) in Step 5.
 // Will be backed by PostgreSQL database unique constraints in Step 8.
@@ -96,39 +97,44 @@ async function processWebhookEventAsync(payload) {
 }
 
 /**
- * Dispatches message logic. For Phase 1, it simply echos replies back to the user via WhatsApp.
- * (Will integrate OpenAI Assistant Routing in Phase 2, Step 7).
+ * Dispatches message logic. Routes text messages to AI Router.
+ * Other types (audio, image) will be integrated in Phase 4.
  */
 async function dispatchMessageAsync(message) {
   const to = message.from;
-  let replyText = '';
 
   switch (message.type) {
     case 'text':
-      replyText = `Pesan Anda diterima: "${message.body}"`;
+      // Route to AI Core (Phase 2, Step 7)
+      await routeMessageToAI(message);
       break;
 
     case 'audio':
-      replyText = `Pesan suara Anda telah kami terima (Media ID: ${message.mediaId}). Kami akan segera memprosesnya.`;
+      // Placeholder for Step 14
+      await sendTextMessage(to, 'Pesan suara Anda telah kami terima. Kami akan segera memprosesnya.');
       break;
 
     case 'image':
-      replyText = `Pesan gambar Anda telah kami terima (Media ID: ${message.mediaId}). Caption: "${message.caption || ''}"`;
+      // Placeholder for Step 15
+      await sendTextMessage(to, 'Pesan gambar Anda telah kami terima. Kami akan segera memprosesnya.');
       break;
 
     case 'location':
-      replyText = `Lokasi Anda telah kami terima: Latitude ${message.location.latitude}, Longitude ${message.location.longitude}`;
+      await sendTextMessage(to, 'Terima kasih telah berbagi lokasi.');
       break;
 
     case 'interactive':
-      replyText = `Anda memilih menu interaktif: [${message.interactive.title}] (ID: ${message.interactive.id})`;
+      // In Step 10+, we might want to handle button clicks differently, 
+      // but for now, AI can handle the button title as text.
+      await routeMessageToAI({
+        ...message,
+        body: `User clicked: ${message.interactive.title}`
+      });
       break;
 
     default:
-      replyText = 'Maaf, tipe pesan ini belum didukung saat ini.';
+      await sendTextMessage(to, 'Maaf, tipe pesan ini belum didukung saat ini.');
       break;
   }
-
-  // Send the reply back to the user via WhatsApp Cloud API client
-  await sendTextMessage(to, replyText);
 }
+

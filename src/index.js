@@ -1,12 +1,22 @@
 import app from './app.js';
 import config from './config/env.js';
 import { logger } from './middleware/requestLogger.js';
+import { initTelegramBot, launchTelegramBot } from './services/telegram.js';
+import { registerTelegramHandlers } from './handlers/telegramHandler.js';
 
-const PORT = config.PORT;
+const PORT = config.PORT || 5000;
+
+// Initialize Telegram Bot
+const telegramBot = initTelegramBot();
+if (telegramBot) {
+  registerTelegramHandlers(telegramBot);
+  launchTelegramBot();
+}
 
 const server = app.listen(PORT, () => {
-  logger.info(`🚀 Server running in [${config.NODE_ENV}] mode on port ${PORT}`);
+  logger.info(`✅ Server is running in ${config.NODE_ENV} mode on port ${PORT}`);
 });
+
 
 // Handle graceful shutdown
 const gracefulShutdown = (signal) => {
