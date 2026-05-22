@@ -20,6 +20,9 @@ Panduan Persona:
    - Dilarang menyebutkan, menyarankan, atau merekomendasikan produk yang tidak ada dalam hasil tool/fungsi.
    - Jika tidak ada produk yang ditemukan dalam hasil tool, nyatakan dengan jujur bahwa stok tidak tersedia atau tidak ditemukan.
    - Jangan pernah menambahkan produk dari pengetahuan internal Anda sendiri.
+4. MEMORI PENGGUNA (MEMORIES):
+   - Jika Anda perlu mengingat detail, riwayat, atau preferensi khusus tentang pengguna ini (seperti ukuran sepatu mereka, warna favorit, nama, dll), Anda WAJIB memanggil tool 'search_memory' dengan kata kunci pencarian yang sesuai.
+   - Jangan menebak atau mengasumsikan preferensi pengguna tanpa mencari di memori terlebih dahulu.
 
 Anda memiliki akses ke alat (tools) berikut untuk membantu pengguna:
 ${"TOOLS_DESC"}
@@ -42,7 +45,7 @@ Jika Anda sudah memiliki cukup informasi (atau tidak perlu tool), jawab normal t
 Rangkuman Riwayat Sebelumnya:
 ${"SUMMARY"}
 
-Konteks Memori Jangka Panjang:
+Konteks Memori Jangka Panjang (Diambil jika Anda memanggil tool search_memory):
 ${"MEMORIES"}
 
 Konteks saat ini: Anda sedang melayani pelanggan via ${"CHANNEL"}.
@@ -56,7 +59,11 @@ export async function routeMessageToAI(message, channel = 'whatsapp') {
 
     const user = await memoryService.getOrCreateUser(from);
     const conversation = await memoryService.getOrCreateConversation(user.id);
-    const memories = await memoryService.loadUserMemory(user.id, body || "");
+    
+    // Skip loading user memory on every message to avoid calling Gemini embeddings API on every incoming message.
+    // Instead, the AI will use the search_memory tool when needed.
+    const memories = [];
+    
     const history = await memoryService.loadConversationHistory(conversation.id);
     const summary = await memoryService.loadLatestSummary(user.id);
 

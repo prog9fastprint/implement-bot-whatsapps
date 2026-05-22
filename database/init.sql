@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS products (
   brand           VARCHAR(100),
   image_url       TEXT,
   tags            TEXT[],                    -- For search/recommendation
+  embedding       vector(3072),              -- Gemini text-embedding-004 standard
   is_active       BOOLEAN     DEFAULT TRUE,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()

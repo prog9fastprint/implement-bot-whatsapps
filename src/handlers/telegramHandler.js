@@ -29,12 +29,13 @@ export function registerTelegramHandlers(bot) {
       timestamp: ctx.message.date,
     };
 
-    try {
-      await routeMessageToAI(normalizedMessage, 'telegram');
-    } catch (error) {
+    // Send typing status immediately to improve UX responsiveness
+    ctx.sendChatAction('typing').catch(err => logger.warn('Failed to send typing status', { error: err.message }));
+
+    routeMessageToAI(normalizedMessage, 'telegram').catch((error) => {
       logger.error('Error in Telegram message handler', { error: error.message });
-      ctx.reply('Maaf, terjadi kesalahan saat memproses pesan Anda.');
-    }
+      ctx.reply('Maaf, terjadi kesalahan saat memproses pesan Anda.').catch(() => {});
+    });
   });
 
   // Handle other message types as placeholders

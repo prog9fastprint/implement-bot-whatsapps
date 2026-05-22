@@ -10,6 +10,7 @@
 ```
 plan-implement-whatsapps-bot/
 ├── README.md                      ← You are here (index + navigation)
+├── walkthrough.md                 ← Consolidated project walkthrough
 └── docs/
     ├── 01-core/
     │   ├── 00-context.md          ← Role, rules, and constraints
@@ -33,6 +34,7 @@ plan-implement-whatsapps-bot/
 
 | File | What It Covers |
 |------|---------------|
+| [walkthrough.md](walkthrough.md) | **Start Here**: Consolidated project overview & current status |
 | [docs/01-core/00-context.md](docs/01-core/00-context.md) | AI role, non-negotiable rules, output format |
 | [docs/02-design/01-architecture.md](docs/02-design/01-architecture.md) | System diagram, component responsibilities |
 | [docs/01-core/02-tech-stack.md](docs/01-core/02-tech-stack.md) | Each technology, version, and reason for inclusion |

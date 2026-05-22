@@ -140,6 +140,23 @@ export const toolDefinitions = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'search_memory',
+      description: 'Search long-term user memories and preferences (e.g. shoe size, color preferences) using a search query.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Query to search for in memories (e.g., "ukuran sepatu" or "warna")',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 
 export default toolDefinitions;

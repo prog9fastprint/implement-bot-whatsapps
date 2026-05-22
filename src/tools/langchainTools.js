@@ -13,7 +13,8 @@ const toolNames = [
   "check_order_status",
   "create_complaint_ticket",
   "get_ticket_status",
-  "get_product_recommendation"
+  "get_product_recommendation",
+  "search_memory"
 ];
 
 // Reusing schema definition approach for Zod validation
@@ -44,6 +45,9 @@ const schemas = {
     category: z.string().optional(),
     budget_max: z.number().optional(),
     preferences: z.string().optional(),
+  }),
+  search_memory: z.object({
+    query: z.string(),
   }),
 };
 

@@ -1,5 +1,14 @@
 import db from '../database/client.js';
 import { logger } from '../middleware/requestLogger.js';
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import config from '../config/env.js';
+
+// Initialize Gemini Embeddings
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: config.GOOGLE_API_KEY,
+  modelName: "gemini-embedding-001",
+  dimensions: 1536,
+});
 
 /**
  * Check stock for a specific product and variant.
@@ -7,25 +16,33 @@ import { logger } from '../middleware/requestLogger.js';
  */
 export async function checkStock({ product_name, size, color }) {
   try {
-    logger.debug(`Checking stock for: ${product_name} ${size || ''}`);
+    logger.debug(`Checking stock for (semantic): ${product_name} ${size || ''}`);
     
-    // Simple fuzzy search by product name
+    // Generate embedding for semantic matching
+    const searchEmbedding = await embeddings.embedQuery(product_name);
+    
+    // Semantic search using pgvector
     const query = `
-      SELECT p.name, v.variant_name, v.size, v.color, v.stock, v.price
+      SELECT p.name, v.variant_name, v.size, v.color, v.stock, v.price,
+             1 - (p.embedding <=> $1::vector) AS similarity
       FROM products p
       JOIN product_variants v ON p.id = v.product_id
-      WHERE p.name ILIKE $1
+      WHERE p.is_active = TRUE AND v.is_active = TRUE
       AND ($2::VARCHAR IS NULL OR v.size = $2)
       AND ($3::VARCHAR IS NULL OR v.color = $3)
+      ORDER BY similarity DESC
       LIMIT 5;
     `;
-    const res = await db.query(query, [`%${product_name}%`, size || null, color || null]);
+    const res = await db.query(query, [JSON.stringify(searchEmbedding), size || null, color || null]);
     
-    if (res.rowCount === 0) {
+    // Filter matches with acceptable similarity
+    const matches = res.rows.filter(item => item.similarity >= 0.35);
+    
+    if (matches.length === 0) {
       return { status: 'not_found', message: `Produk "${product_name}" tidak ditemukan.` };
     }
 
-    return { status: 'success', data: res.rows };
+    return { status: 'success', data: matches };
   } catch (error) {
     logger.error('Error in checkStock service', { error: error.message });
     throw error;

@@ -2,6 +2,7 @@ import { checkStock, getProductPrice } from '../services/productService.js';
 import { checkOrderStatus } from '../services/orderService.js';
 import { createComplaintTicket, getTicketStatus } from '../services/complaintService.js';
 import { getProductRecommendation } from '../services/recommendationService.js';
+import memoryService from '../services/memoryService.js';
 import { logger } from '../middleware/requestLogger.js';
 
 /**
@@ -54,6 +55,10 @@ export async function dispatchToolCalls(toolCalls, context) {
             ...args,
             userId: context.userId,
           });
+          break;
+
+        case 'search_memory':
+          result = await memoryService.loadUserMemory(context.userId, args.query);
           break;
 
         default:
