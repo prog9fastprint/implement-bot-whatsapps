@@ -16,8 +16,10 @@ const envSchema = z.object({
     .min(1, "WHATSAPP_WEBHOOK_VERIFY_TOKEN is required"),
   WHATSAPP_API_VERSION: z.string().default("v18.0"),
 
-  // OpenAI
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
+  OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+  OPENAI_MODEL: z.string().default("gpt-4o"),
+  OPENAI_FALLBACK_MODELS: z.string().optional().default(""),
 
   // Telegram
   TELEGRAM_BOT_TOKEN: z.string().optional().default(""),

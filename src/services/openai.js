@@ -5,6 +5,11 @@ import { logger } from '../middleware/requestLogger.js';
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: config.OPENAI_API_KEY,
+  baseURL: config.OPENAI_BASE_URL,
+  defaultHeaders: config.OPENAI_BASE_URL.includes('openrouter.ai') ? {
+    'HTTP-Referer': 'https://github.com/prog9/plan-implement-whatsapps-bot',
+    'X-Title': 'Nike Chatbot',
+  } : undefined,
 });
 
 /**
@@ -15,28 +20,46 @@ const openai = new OpenAI({
  * @returns {Promise<object>} - The completion response choice message
  */
 export async function chatCompletion(messages, tools = null, tool_choice = 'auto') {
-  try {
-    logger.debug('Sending request to OpenAI Chat Completion API');
-    
-    const params = {
-      model: 'gpt-4o',
-      messages,
-      temperature: 0.7,
-    };
+  const fallbackList = config.OPENAI_FALLBACK_MODELS
+    ? config.OPENAI_FALLBACK_MODELS.split(',').map(m => m.trim()).filter(Boolean)
+    : [];
+  const modelsToTry = [config.OPENAI_MODEL, ...fallbackList];
 
-    if (tools && tools.length > 0) {
-      params.tools = tools;
-      params.tool_choice = tool_choice;
+  let lastError = null;
+  for (const currentModel of modelsToTry) {
+    try {
+      logger.debug(`Sending request to OpenAI Chat Completion API using model: ${currentModel}`);
+      
+      const params = {
+        model: currentModel,
+        messages,
+        temperature: 0.7,
+      };
+
+      if (config.OPENAI_BASE_URL.includes('openrouter.ai')) {
+        const remainingModels = modelsToTry.slice(modelsToTry.indexOf(currentModel));
+        if (remainingModels.length > 1) {
+          params.models = remainingModels;
+        }
+      }
+
+      if (tools && tools.length > 0) {
+        params.tools = tools;
+        params.tool_choice = tool_choice;
+      }
+
+      const response = await openai.chat.completions.create(params);
+      return response.choices[0].message;
+    } catch (error) {
+      lastError = error;
+      logger.warn(`OpenAI Chat Completion failed for model ${currentModel}. Error: ${error.message}. Trying next...`);
     }
-
-    const response = await openai.chat.completions.create(params);
-    return response.choices[0].message;
-  } catch (error) {
-    logger.error('OpenAI Chat Completion Error', {
-      error: error.response?.data || error.message,
-    });
-    throw error;
   }
+
+  logger.error('All OpenAI Chat Completion models failed', {
+    error: lastError.response?.data || lastError.message,
+  });
+  throw lastError;
 }
 
 /**
@@ -68,33 +91,54 @@ export async function transcribeAudio(audioFileStream) {
  * @returns {Promise<string>} - The AI's analysis of the image
  */
 export async function analyzeImage(base64Image, prompt = 'Jelaskan gambar ini secara detail.') {
-  try {
-    logger.info('Sending image to OpenAI GPT-4o Vision API');
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`,
+  const fallbackList = config.OPENAI_FALLBACK_MODELS
+    ? config.OPENAI_FALLBACK_MODELS.split(',').map(m => m.trim()).filter(Boolean)
+    : [];
+  const modelsToTry = [config.OPENAI_MODEL, ...fallbackList];
+
+  let lastError = null;
+  for (const currentModel of modelsToTry) {
+    try {
+      logger.info(`Sending image to OpenAI Vision API using model: ${currentModel}`);
+      
+      const params = {
+        model: currentModel,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`,
+                },
               },
-            },
-          ],
-        },
-      ],
-      max_tokens: 500,
-    });
-    return response.choices[0].message.content;
-  } catch (error) {
-    logger.error('OpenAI Vision Error', {
-      error: error.message,
-    });
-    throw error;
+            ],
+          },
+        ],
+        max_tokens: 500,
+      };
+
+      if (config.OPENAI_BASE_URL.includes('openrouter.ai')) {
+        const remainingModels = modelsToTry.slice(modelsToTry.indexOf(currentModel));
+        if (remainingModels.length > 1) {
+          params.models = remainingModels;
+        }
+      }
+
+      const response = await openai.chat.completions.create(params);
+      return response.choices[0].message.content;
+    } catch (error) {
+      lastError = error;
+      logger.warn(`OpenAI Vision failed for model ${currentModel}. Error: ${error.message}. Trying next...`);
+    }
   }
+
+  logger.error('All OpenAI Vision models failed', {
+    error: lastError.response?.data || lastError.message,
+  });
+  throw lastError;
 }
 
 export default openai;
