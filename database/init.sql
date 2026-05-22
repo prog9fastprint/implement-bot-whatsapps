@@ -202,8 +202,8 @@ CREATE TABLE IF NOT EXISTS ai_summaries (
   user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   conversation_id   UUID        REFERENCES conversations(id),
   summary           TEXT        NOT NULL,   -- GPT-generated summary
-  message_range_start UUID      REFERENCES messages(id),
-  message_range_end   UUID      REFERENCES messages(id),
+  message_range_start UUID,
+  message_range_end   UUID,
   message_count     INT         NOT NULL,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
@@ -249,7 +249,13 @@ END $$;
 INSERT INTO products (sku, name, category, brand, description, tags) 
 VALUES
   ('NIKE-AIR-001', 'Nike Air Max 90', 'footwear', 'Nike', 'The classic Nike Air Max 90 with updated colors and materials.', ARRAY['sneakers', 'running', 'casual']),
-  ('NIKE-AIR-002', 'Nike Air Force 1', 'footwear', 'Nike', 'Legendary street style meets basketball performance.', ARRAY['sneakers', 'lifestyle', 'classic'])
+  ('NIKE-AIR-002', 'Nike Air Force 1', 'footwear', 'Nike', 'Legendary street style meets basketball performance.', ARRAY['sneakers', 'lifestyle', 'classic']),
+  ('NIKE-PEG-041', 'Nike Pegasus 41', 'footwear', 'Nike', 'Responsive cushioning for daily runs. The workhorse with wings.', ARRAY['sneakers', 'running', 'pegasus']),
+  ('NIKE-VOM-018', 'Nike Vomero 18', 'footwear', 'Nike', 'Premium comfort and maximum cushioning for long runs.', ARRAY['sneakers', 'running', 'cushioned']),
+  ('NIKE-LEB-021', 'Nike LeBron 21', 'footwear', 'Nike', 'LeBron James signature shoe built for explosive power and soft landings.', ARRAY['sneakers', 'basketball', 'lebron']),
+  ('NIKE-DNK-001', 'Nike Dunk Low', 'footwear', 'Nike', 'Retro style basketball sneaker perfect for casual everyday wear.', ARRAY['sneakers', 'lifestyle', 'dunk']),
+  ('NIKE-TEE-001', 'Nike Dri-FIT T-Shirt', 'apparel', 'Nike', 'Moisture-wicking athletic t-shirt for training.', ARRAY['clothing', 't-shirt', 'training']),
+  ('NIKE-JOG-001', 'Nike Jogger Pants', 'apparel', 'Nike', 'Comfortable fleece sweatpants for lounging or warming up.', ARRAY['clothing', 'pants', 'jogger'])
 ON CONFLICT (sku) DO NOTHING;
 
 -- Seed Product Variants
@@ -267,3 +273,109 @@ INSERT INTO product_variants (product_id, variant_name, size, color, price, stoc
 SELECT id, 'Nike Air Force 1 - Size 42 - Black', '42', 'Black', 1300000, 15
 FROM products WHERE sku = 'NIKE-AIR-002'
 ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Pegasus 41 - Size 42 - Black/Volt', '42', 'Black/Volt', 2000000, 8
+FROM products WHERE sku = 'NIKE-PEG-041'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Pegasus 41 - Size 43 - Black/Volt', '43', 'Black/Volt', 2000000, 0
+FROM products WHERE sku = 'NIKE-PEG-041'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Vomero 18 - Size 42 - Blue', '42', 'Blue', 2500000, 12
+FROM products WHERE sku = 'NIKE-VOM-018'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike LeBron 21 - Size 44 - Red', '44', 'Red', 3100000, 5
+FROM products WHERE sku = 'NIKE-LEB-021'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Dunk Low - Size 42 - Panda', '42', 'Panda', 1700000, 15
+FROM products WHERE sku = 'NIKE-DNK-001'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Dunk Low - Size 43 - Panda', '43', 'Panda', 1700000, 10
+FROM products WHERE sku = 'NIKE-DNK-001'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Dri-FIT T-Shirt - Size L - Black', 'L', 'Black', 450000, 20
+FROM products WHERE sku = 'NIKE-TEE-001'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Dri-FIT T-Shirt - Size XL - Black', 'XL', 'Black', 450000, 15
+FROM products WHERE sku = 'NIKE-TEE-001'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Jogger Pants - Size M - Gray', 'M', 'Gray', 850000, 10
+FROM products WHERE sku = 'NIKE-JOG-001'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO product_variants (product_id, variant_name, size, color, price, stock)
+SELECT id, 'Nike Jogger Pants - Size L - Gray', 'L', 'Gray', 850000, 6
+FROM products WHERE sku = 'NIKE-JOG-001'
+ON CONFLICT DO NOTHING;
+
+-- Seed Test Users
+INSERT INTO users (phone_number, name)
+VALUES
+  ('6281234567890', 'Budi'),
+  ('123456789', 'Telegram Tester')
+ON CONFLICT (phone_number) DO NOTHING;
+
+-- Seed Sample Orders
+INSERT INTO orders (order_number, user_id, status, total_amount, shipping_address, tracking_number, courier, notes)
+VALUES
+  (
+    'ORD-20260101-0001',
+    (SELECT id FROM users WHERE phone_number = '6281234567890'),
+    'shipped',
+    3000000,
+    '{"street": "Jl. Merdeka No. 10", "city": "Jakarta", "province": "DKI Jakarta", "postal_code": "10110"}',
+    'JN123456789ID',
+    'JNE',
+    'Kirim sebelum jam 5 sore.'
+  ),
+  (
+    'ORD-20260115-0002',
+    (SELECT id FROM users WHERE phone_number = '123456789'),
+    'pending',
+    1700000,
+    '{"street": "Jl. Sudirman No. 45", "city": "Bandung", "province": "Jawa Barat", "postal_code": "40111"}',
+    NULL,
+    NULL,
+    'Tolong diproses cepat.'
+  )
+ON CONFLICT (order_number) DO NOTHING;
+
+-- Seed Order Items
+INSERT INTO order_items (order_id, variant_id, quantity, unit_price)
+SELECT
+  (SELECT id FROM orders WHERE order_number = 'ORD-20260101-0001'),
+  pv.id,
+  2,
+  1500000
+FROM product_variants pv
+JOIN products p ON pv.product_id = p.id
+WHERE p.sku = 'NIKE-AIR-001' AND pv.size = '42'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO order_items (order_id, variant_id, quantity, unit_price)
+SELECT
+  (SELECT id FROM orders WHERE order_number = 'ORD-20260115-0002'),
+  pv.id,
+  1,
+  1700000
+FROM product_variants pv
+JOIN products p ON pv.product_id = p.id
+WHERE p.sku = 'NIKE-DNK-001' AND pv.size = '42'
+ON CONFLICT DO NOTHING;
+

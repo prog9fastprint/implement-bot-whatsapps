@@ -1,10 +1,17 @@
 import db from '../database/client.js';
 import { logger, maskPhone } from '../middleware/requestLogger.js';
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import config from '../config/env.js';
+
+// Initialize Gemini Embeddings
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: config.GOOGLE_API_KEY,
+  modelName: "gemini-embedding-001",
+  dimensions: 1536,
+});
 
 /**
  * Gets a user by phone number or creates a new one if it doesn't exist.
- * @param {string} phoneNumber - User's phone number
- * @returns {Promise<object>} - The user object
  */
 export async function getOrCreateUser(phoneNumber) {
   try {
@@ -24,12 +31,9 @@ export async function getOrCreateUser(phoneNumber) {
 
 /**
  * Gets the current active conversation for a user or creates a new one.
- * @param {string} userId - UUID of the user
- * @returns {Promise<object>} - The conversation object
  */
 export async function getOrCreateConversation(userId) {
   try {
-    // Look for an active conversation
     let res = await db.query(
       'SELECT * FROM conversations WHERE user_id = $1 AND is_active = TRUE ORDER BY created_at DESC LIMIT 1',
       [userId]
@@ -39,7 +43,6 @@ export async function getOrCreateConversation(userId) {
       return res.rows[0];
     }
 
-    // Create a new conversation if none active
     res = await db.query(
       'INSERT INTO conversations (user_id) VALUES ($1) RETURNING *',
       [userId]
@@ -53,19 +56,17 @@ export async function getOrCreateConversation(userId) {
 
 /**
  * Saves a message to the database.
- * @param {object} params - Message parameters { conversationId, userId, role, type, content, whatsappMsgId, toolCalls }
- * @returns {Promise<object>} - The saved message object
  */
 export async function saveMessage({ conversationId, userId, role, type = 'text', content, whatsappMsgId = null, toolCalls = null }) {
   try {
+    const toolCallsJson = toolCalls ? JSON.stringify(toolCalls) : null;
     const query = `
       INSERT INTO messages (conversation_id, user_id, role, type, content, whatsapp_msg_id, tool_calls)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *;
     `;
-    const res = await db.query(query, [conversationId, userId, role, type, content, whatsappMsgId, toolCalls]);
+    const res = await db.query(query, [conversationId, userId, role, type, content, whatsappMsgId, toolCallsJson]);
     
-    // Increment message count in conversation
     await db.query(
       'UPDATE conversations SET message_count = message_count + 1, updated_at = NOW() WHERE id = $1',
       [conversationId]
@@ -80,11 +81,25 @@ export async function saveMessage({ conversationId, userId, role, type = 'text',
 
 /**
  * Loads long-term memories/facts for a user.
- * @param {string} userId - UUID of the user
- * @returns {Promise<Array>} - List of memory objects
  */
-export async function loadUserMemory(userId) {
+export async function loadUserMemory(userId, query = "") {
   try {
+    if (query) {
+      // 1. Generate embedding for query
+      const queryEmbedding = await embeddings.embedQuery(query);
+      
+      // 2. Semantic search using pgvector
+      const res = await db.query(
+        `SELECT key, value, memory_type, 1 - (embedding <=> $1::vector) AS similarity 
+         FROM ai_memories 
+         WHERE user_id = $2 AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY similarity DESC LIMIT 3`,
+        [JSON.stringify(queryEmbedding), userId]
+      );
+      return res.rows;
+    }
+
+    // Fallback to exact fetch
     const res = await db.query(
       'SELECT memory_type, key, value FROM ai_memories WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())',
       [userId]
@@ -98,21 +113,20 @@ export async function loadUserMemory(userId) {
 
 /**
  * Saves or updates a long-term memory for a user.
- * @param {string} userId - UUID of the user
- * @param {string} type - Memory type (e.g., 'preference', 'fact')
- * @param {string} key - Memory key (e.g., 'name', 'coffee_preference')
- * @param {string} value - Memory value
- * @param {number} [confidence=1.0] - Confidence score
  */
 export async function saveUserMemory(userId, type, key, value, confidence = 1.0) {
   try {
+    // 1. Generate embedding for the value
+    const embedding = await embeddings.embedQuery(value);
+
+    // 2. DB Save with vector
     const query = `
-      INSERT INTO ai_memories (user_id, memory_type, key, value, confidence)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO ai_memories (user_id, memory_type, key, value, confidence, embedding)
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (user_id, memory_type, key) 
-      DO UPDATE SET value = $4, confidence = $5, updated_at = NOW();
+      DO UPDATE SET value = $4, confidence = $5, embedding = $6, updated_at = NOW();
     `;
-    await db.query(query, [userId, type, key, value, confidence]);
+    await db.query(query, [userId, type, key, value, confidence, JSON.stringify(embedding)]);
   } catch (error) {
     logger.error('Error in saveUserMemory', { userId, key, error: error.message });
     throw error;
@@ -121,9 +135,6 @@ export async function saveUserMemory(userId, type, key, value, confidence = 1.0)
 
 /**
  * Loads the recent conversation history for a specific conversation.
- * @param {string} conversationId - UUID of the conversation
- * @param {number} [limit=20] - Max messages to load
- * @returns {Promise<Array>} - List of message objects formatted for OpenAI
  */
 export async function loadConversationHistory(conversationId, limit = 20) {
   try {
@@ -136,14 +147,42 @@ export async function loadConversationHistory(conversationId, limit = 20) {
       [conversationId, limit]
     );
 
-    // Reverse to get chronological order and format for OpenAI
-    return res.rows.reverse().map(msg => ({
-      role: msg.role,
-      content: msg.content,
-      ...(msg.tool_calls && { tool_calls: msg.tool_calls })
-    }));
+    return res.rows.reverse().map(msg => {
+      const sanitized = {
+        role: msg.role,
+        content: msg.content || '',
+      };
+      if (msg.tool_calls) {
+        sanitized.tool_calls = typeof msg.tool_calls === 'string' 
+          ? JSON.parse(msg.tool_calls) 
+          : msg.tool_calls;
+      }
+      const allowedKeys = ['role', 'content', 'tool_calls', 'tool_call_id', 'name'];
+      return Object.keys(sanitized)
+        .filter(key => allowedKeys.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = sanitized[key];
+          return obj;
+        }, {});
+    });
   } catch (error) {
     logger.error('Error in loadConversationHistory', { conversationId, error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Loads the latest conversation summary for a user.
+ */
+export async function loadLatestSummary(userId) {
+  try {
+    const res = await db.query(
+      'SELECT summary FROM ai_summaries WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+    return res.rowCount > 0 ? res.rows[0].summary : null;
+  } catch (error) {
+    logger.error('Error in loadLatestSummary', { userId, error: error.message });
     throw error;
   }
 }
@@ -155,4 +194,6 @@ export default {
   loadUserMemory,
   saveUserMemory,
   loadConversationHistory,
+  loadLatestSummary,
 };
+

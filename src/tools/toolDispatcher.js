@@ -1,6 +1,7 @@
 import { checkStock, getProductPrice } from '../services/productService.js';
 import { checkOrderStatus } from '../services/orderService.js';
-import { createComplaintTicket } from '../services/complaintService.js';
+import { createComplaintTicket, getTicketStatus } from '../services/complaintService.js';
+import { getProductRecommendation } from '../services/recommendationService.js';
 import { logger } from '../middleware/requestLogger.js';
 
 /**
@@ -41,6 +42,17 @@ export async function dispatchToolCalls(toolCalls, context) {
           result = await createComplaintTicket({
             ...args,
             user_id: context.userId,
+          });
+          break;
+
+        case 'get_ticket_status':
+          result = await getTicketStatus(args);
+          break;
+
+        case 'get_product_recommendation':
+          result = await getProductRecommendation({
+            ...args,
+            userId: context.userId,
           });
           break;
 

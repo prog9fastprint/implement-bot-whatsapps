@@ -3,9 +3,9 @@ import { sendTextMessage } from './whatsapp.js';
 import { sendTelegramMessage } from './telegram.js';
 import { logger, maskPhone } from '../middleware/requestLogger.js';
 import memoryService from './memoryService.js';
-import { toolDefinitions } from '../tools/toolDefinitions.js';
-import { dispatchToolCalls } from '../tools/toolDispatcher.js';
+import { langchainTools } from '../tools/langchainTools.js';
 import { checkAndSummarize } from './summarizationService.js';
+import { withRetry } from '../utils/retry.js';
 
 // The bot's core identity and instructions
 const SYSTEM_PROMPT = `
@@ -15,35 +15,51 @@ Tugas Anda adalah membantu pelanggan dengan ramah, profesional, dan efisien dala
 Panduan Persona:
 1. Gunakan bahasa Indonesia yang sopan dan natural (Gunakan 'Halo', 'Selamat siang', 'Terima kasih', dll).
 2. Fokus pada produk Nike: sepatu, pakaian olahraga, dan aksesori.
-3. Selalu berikan informasi berdasarkan data yang tersedia (jangan berhalusinasi).
-4. Gunakan alat (tools) yang tersedia untuk memeriksa stok, harga, status pesanan, atau membuat tiket keluhan.
+3. KETENTUAN PENTING (RAG STRICTNESS):
+   - Gunakan HANYA informasi produk yang disediakan oleh tool/fungsi yang tersedia.
+   - Dilarang menyebutkan, menyarankan, atau merekomendasikan produk yang tidak ada dalam hasil tool/fungsi.
+   - Jika tidak ada produk yang ditemukan dalam hasil tool, nyatakan dengan jujur bahwa stok tidak tersedia atau tidak ditemukan.
+   - Jangan pernah menambahkan produk dari pengetahuan internal Anda sendiri.
+
+Anda memiliki akses ke alat (tools) berikut untuk membantu pengguna:
+${"TOOLS_DESC"}
+
+INSTRUKSI PENGGUNAAN TOOL:
+Jika Anda perlu menggunakan tool untuk mencari informasi, Anda WAJIB membalas HANYA dengan blok JSON yang dibungkus tag <tool_call>.
+Contoh:
+<tool_call>
+{
+  "name": "check_stock",
+  "arguments": {
+    "product_name": "Nike Air Max 90"
+  }
+}
+</tool_call>
+
+Tunggu sistem membalas dengan hasil tool sebelum memberikan jawaban akhir ke pengguna.
+Jika Anda sudah memiliki cukup informasi (atau tidak perlu tool), jawab normal tanpa tag <tool_call>.
+
+Rangkuman Riwayat Sebelumnya:
+${"SUMMARY"}
 
 Konteks Memori Jangka Panjang:
-\${"MEMORIES"}
+${"MEMORIES"}
 
-Konteks saat ini: Anda sedang melayani pelanggan via \${"CHANNEL"}.
+Konteks saat ini: Anda sedang melayani pelanggan via ${"CHANNEL"}.
 `;
 
-/**
- * Routes and processes a user message through the AI pipeline.
- * @param {object} message - The normalized message object
- * @param {string} [channel='whatsapp'] - The communication channel
- */
 export async function routeMessageToAI(message, channel = 'whatsapp') {
   const { from, body, messageId: whatsappMsgId } = message;
 
   try {
     logger.info(`Routing message from \${channel === 'whatsapp' ? maskPhone(from) : from} to AI Router via \${channel}`);
 
-    // 1. Get or create User and Conversation
     const user = await memoryService.getOrCreateUser(from);
     const conversation = await memoryService.getOrCreateConversation(user.id);
-
-    // 2. Load Memories and History
-    const memories = await memoryService.loadUserMemory(user.id);
+    const memories = await memoryService.loadUserMemory(user.id, body || "");
     const history = await memoryService.loadConversationHistory(conversation.id);
+    const summary = await memoryService.loadLatestSummary(user.id);
 
-    // 3. Save User Message
     await memoryService.saveMessage({
       conversationId: conversation.id,
       userId: user.id,
@@ -52,12 +68,16 @@ export async function routeMessageToAI(message, channel = 'whatsapp') {
       whatsappMsgId,
     });
 
-    // 4. Prepare initial message array
     const memoryContext = memories.length > 0 
       ? memories.map(m => `- \${m.key}: \${m.value}`).join('\n')
       : 'Belum ada memori spesifik tentang pengguna ini.';
 
+    const summaryContext = summary || 'Belum ada rangkuman riwayat percakapan sebelumnya.';
+    const toolsDesc = langchainTools.map(t => `Tool: \${t.name}, Desc: \${t.description}`).join('\n');
+
     const systemPromptFormatted = SYSTEM_PROMPT
+      .replace('\${"TOOLS_DESC"}', toolsDesc)
+      .replace('\${"SUMMARY"}', summaryContext)
       .replace('\${"MEMORIES"}', memoryContext)
       .replace('\${"CHANNEL"}', channel === 'whatsapp' ? 'WhatsApp' : 'Telegram');
 
@@ -67,82 +87,65 @@ export async function routeMessageToAI(message, channel = 'whatsapp') {
       { role: 'user', content: body || '(Pesan tanpa teks)' },
     ];
 
-    // 5. AI Reasoning & Tool Calling Loop (Max 5 turns)
     let turns = 0;
-    let finalResponseContent = '';
     const MAX_TURNS = 5;
 
     while (turns < MAX_TURNS) {
       turns++;
       
-      // Get completion from OpenAI
-      const aiResponse = await chatCompletion(messages, toolDefinitions);
-      
-      // Add assistant response to history
+      const aiResponse = await withRetry(() => chatCompletion(messages));
       messages.push(aiResponse);
 
-      // Save assistant message to DB
       await memoryService.saveMessage({
         conversationId: conversation.id,
         userId: user.id,
         role: 'assistant',
         content: aiResponse.content || '(Panggilan Sistem)',
-        toolCalls: aiResponse.tool_calls || null,
       });
 
-      if (aiResponse.tool_calls) {
-        // Execute tools
-        const toolResults = await dispatchToolCalls(aiResponse.tool_calls, {
-          userId: user.id,
-          phoneNumber: from,
-        });
+      const toolCallMatch = aiResponse.content?.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
 
-        // Add tool results to messages for the next turn
-        messages.push(...toolResults);
+      if (toolCallMatch) {
+        try {
+          const parsedCall = JSON.parse(toolCallMatch[1].trim());
+          const tool = langchainTools.find(t => t.name === parsedCall.name);
+          
+          if (!tool) throw new Error("Tool not found");
 
-        // Save tool messages to DB
-        for (const tr of toolResults) {
+          const result = await tool.invoke(parsedCall.arguments);
+
+          const resultStr = `[System: Tool Result for '${parsedCall.name}']\n\${result}`;
+          messages.push({ role: 'user', content: resultStr });
+
           await memoryService.saveMessage({
             conversationId: conversation.id,
             userId: user.id,
-            role: 'tool',
-            content: tr.content,
+            role: 'system',
+            content: resultStr,
           });
-        }
-        
-        // Loop back to AI to process tool results
-        continue;
-      }
 
-      // No tool calls, we have the final content
-      finalResponseContent = aiResponse.content;
+          continue;
+        } catch (e) {
+          logger.error('Failed to parse or execute tool call', { error: e.message, content: aiResponse.content });
+          messages.push({ role: 'user', content: '[System Error]: Format JSON tool call tidak valid.' });
+          continue;
+        }
+      }
       break;
     }
 
-    // 6. Send response back to user via the correct channel
+    const finalResponseContent = messages[messages.length - 1].content?.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim();
+
     if (finalResponseContent) {
-      if (channel === 'whatsapp') {
-        await sendTextMessage(from, finalResponseContent);
-      } else if (channel === 'telegram') {
-        await sendTelegramMessage(from, finalResponseContent);
-      }
-    } else {
-      logger.warn(`AI Router failed to produce content for \${channel}`);
+      if (channel === 'whatsapp') await sendTextMessage(from, finalResponseContent);
+      else if (channel === 'telegram') await sendTelegramMessage(from, finalResponseContent);
     }
 
-    // 7. Post-processing: Check for summarization
     await checkAndSummarize(conversation);
-
   } catch (error) {
-    logger.error(`AI Router Error for \${channel} user \${channel === 'whatsapp' ? maskPhone(from) : from}`, {
-      error: error.message,
-      stack: error.stack,
-    });
+    logger.error('AI Router Error', { error: error.message });
     const errorMsg = 'Maaf, terjadi kesalahan saat memproses pesan Anda.';
-    if (channel === 'whatsapp') {
-      await sendTextMessage(from, errorMsg);
-    } else if (channel === 'telegram') {
-      await sendTelegramMessage(from, errorMsg);
-    }
+    if (channel === 'whatsapp') await sendTextMessage(from, errorMsg);
+    else if (channel === 'telegram') await sendTelegramMessage(from, errorMsg);
   }
 }

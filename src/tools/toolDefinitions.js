@@ -102,6 +102,23 @@ export const toolDefinitions = [
   {
     type: 'function',
     function: {
+      name: 'get_ticket_status',
+      description: 'Check the status of an existing customer complaint/ticket by its ticket number.',
+      parameters: {
+        type: 'object',
+        properties: {
+          ticket_number: {
+            type: 'string',
+            description: 'The complaint ticket number (e.g., TKT-20260101-0001)',
+          },
+        },
+        required: ['ticket_number'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_product_recommendation',
       description: 'Get personalized Nike product recommendations based on preferences.',
       parameters: {

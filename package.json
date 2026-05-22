@@ -8,9 +8,12 @@
     "dev": "node --watch src/index.js"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@langchain/community": "^1.1.28",
+    "@langchain/google-genai": "^2.1.31",
     "@langchain/openai": "^1.4.5",
     "axios": "^1.16.1",
+    "chromadb": "^3.4.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -22,6 +25,7 @@
     "morgan": "^1.10.1",
     "openai": "^6.38.0",
     "pg": "^8.20.0",
+    "pgvector": "^0.2.1",
     "redis": "^5.12.1",
     "sharp": "^0.34.5",
     "telegraf": "^4.16.3",
