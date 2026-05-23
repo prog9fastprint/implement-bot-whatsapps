@@ -23,7 +23,7 @@ export async function checkStock({ product_name, size, color }) {
     
     // Semantic search using pgvector
     const query = `
-      SELECT p.name, v.variant_name, v.size, v.color, v.stock, v.price,
+      SELECT v.id AS variant_id, p.name, v.variant_name, v.size, v.color, v.stock, v.price,
              1 - (p.embedding <=> $1::vector) AS similarity
       FROM products p
       JOIN product_variants v ON p.id = v.product_id
@@ -57,7 +57,7 @@ export async function getProductPrice({ product_name, size }) {
   try {
     const res = await checkStock({ product_name, size });
     if (res.status === 'success') {
-      return { status: 'success', data: res.data.map(item => ({ name: item.variant_name, price: item.price })) };
+      return { status: 'success', data: res.data.map(item => ({ variant_id: item.variant_id, name: item.variant_name, price: item.price })) };
     }
     return res;
   } catch (error) {

@@ -15,12 +15,15 @@ const embeddings = new GoogleGenerativeAIEmbeddings({
  */
 export async function getOrCreateUser(phoneNumber) {
   try {
+    console.log(phoneNumber)
+
     const query = `
       INSERT INTO users (phone_number)
       VALUES ($1)
       ON CONFLICT (phone_number) DO UPDATE SET is_active = TRUE
       RETURNING *;
     `;
+    
     const res = await db.query(query, [phoneNumber]);
     return res.rows[0];
   } catch (error) {

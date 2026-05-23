@@ -14,7 +14,9 @@ const toolNames = [
   "create_complaint_ticket",
   "get_ticket_status",
   "get_product_recommendation",
-  "search_memory"
+  "search_memory",
+  "save_memory",
+  "place_order"
 ];
 
 // Reusing schema definition approach for Zod validation
@@ -49,6 +51,17 @@ const schemas = {
   search_memory: z.object({
     query: z.string(),
   }),
+  save_memory: z.object({
+    key: z.string(),
+    value: z.string(),
+    memory_type: z.string().optional(),
+  }),
+  place_order: z.object({
+    items: z.array(z.object({
+      variant_id: z.union([z.string(), z.number()]),
+      quantity: z.number(),
+    })),
+  }),
 };
 
 export const langchainTools = toolNames.map((name) => {
@@ -56,13 +69,21 @@ export const langchainTools = toolNames.map((name) => {
     name,
     description: `Invoke tool: ${name}`, // LangChain uses this for agent logic
     schema: schemas[name],
-    func: async (args, config) => {
+    func: async (args, runManager) => {
+      // Extract config from runManager
+      const userId = runManager?.config?.configurable?.userId;
+      const phoneNumber = runManager?.config?.configurable?.phoneNumber;
+      
       // Proxy call to existing tool dispatcher
       const toolResults = await dispatchToolCalls(
         [{ function: { name, arguments: JSON.stringify(args) } }],
-        config
+        {
+          userId,
+          phoneNumber
+        }
       );
-      return JSON.stringify(toolResults[0].content);
+      // Return the content directly (already a JSON string)
+      return toolResults[0].content;
     },
   });
 });

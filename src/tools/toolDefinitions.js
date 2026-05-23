@@ -157,6 +157,61 @@ export const toolDefinitions = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'save_memory',
+      description: 'Save a new user memory or preference (e.g. shoe size, name, favorite color).',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: {
+            type: 'string',
+            description: 'The label for the memory (e.g., "nama", "ukuran_sepatu", "warna_favorit")',
+          },
+          value: {
+            type: 'string',
+            description: 'The information to remember',
+          },
+          memory_type: {
+            type: 'string',
+            description: 'Optional category of memory (default: "preference")',
+          },
+        },
+        required: ['key', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'place_order',
+      description: 'Place a new order for Nike products after confirming stock and price.',
+      parameters: {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                variant_id: {
+                  type: 'string',
+                  description: 'The unique UUID of the product variant (retrieved from check_stock or recommendations)',
+                },
+                quantity: {
+                  type: 'integer',
+                  description: 'Number of items to order',
+                },
+              },
+              required: ['variant_id', 'quantity'],
+            },
+          },
+        },
+        required: ['items'],
+      },
+    },
+  },
 ];
 
 export default toolDefinitions;

@@ -28,7 +28,7 @@ const envSchema = z.object({
   POSTGRES_HOST: z.string().default("localhost"),
   POSTGRES_PORT: z.coerce.number().default(5432),
   POSTGRES_DB: z.string().default("whatsapp_bot"),
-  POSTGRES_USER: z.string().default("botuser"),
+  POSTGRES_USER: z.string().default("postgres"),
   POSTGRES_PASSWORD: z.string().default(""),
 
   // Redis

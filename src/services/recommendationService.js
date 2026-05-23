@@ -68,7 +68,7 @@ export async function getProductRecommendation({ category, budget_max, preferenc
       const searchEmbedding = await embeddings.embedQuery(searchText);
       
       query = `
-        SELECT p.id, p.name, p.category, p.description, p.tags,
+        SELECT v.id AS variant_id, p.id, p.name, p.category, p.description, p.tags,
                v.variant_name, v.size, v.color, v.price, v.stock,
                1 - (p.embedding <=> $1::vector) AS similarity
         FROM products p
@@ -94,7 +94,7 @@ export async function getProductRecommendation({ category, budget_max, preferenc
     } else {
       // 2. Default fallback if no search terms
       query = `
-        SELECT p.id, p.name, p.category, p.description, p.tags,
+        SELECT v.id AS variant_id, p.id, p.name, p.category, p.description, p.tags,
                v.variant_name, v.size, v.color, v.price, v.stock,
                1.0 AS similarity
         FROM products p
@@ -130,7 +130,7 @@ export async function getProductRecommendation({ category, budget_max, preferenc
       if (searchText) {
         const searchEmbedding = await embeddings.embedQuery(searchText);
         queryFb = `
-          SELECT p.id, p.name, p.category, p.description, p.tags,
+          SELECT v.id AS variant_id, p.id, p.name, p.category, p.description, p.tags,
                  v.variant_name, v.size, v.color, v.price, v.stock,
                  1 - (p.embedding <=> $1::vector) AS similarity
           FROM products p
@@ -147,7 +147,7 @@ export async function getProductRecommendation({ category, budget_max, preferenc
         queryFb += ` ORDER BY similarity DESC, v.stock DESC, v.price ASC LIMIT 10;`;
       } else {
         queryFb = `
-          SELECT p.id, p.name, p.category, p.description, p.tags,
+          SELECT v.id AS variant_id, p.id, p.name, p.category, p.description, p.tags,
                  v.variant_name, v.size, v.color, v.price, v.stock,
                  1.0 AS similarity
           FROM products p
