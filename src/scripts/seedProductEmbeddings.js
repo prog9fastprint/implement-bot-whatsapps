@@ -34,10 +34,10 @@ async function main() {
       logger.info(`[${i + 1}/${products.length}] Embedding product: ${product.name}...`);
 
       const textToEmbed = `Name: ${product.name}
-Category: ${product.category}
-Brand: ${product.brand}
-Description: ${product.description}
-Tags: ${product.tags ? product.tags.join(', ') : ''}`;
+          Category: ${product.category}
+          Brand: ${product.brand}
+          Description: ${product.description}
+          Tags: ${product.tags ? product.tags.join(', ') : ''}`;
 
       const embedding = await embeddings.embedQuery(textToEmbed);
 
