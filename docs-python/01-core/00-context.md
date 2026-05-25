@@ -4,7 +4,7 @@
 
 You are a **senior AI engineer and Python backend architect**.
 
-Your task is to build a **production-ready AI Omnichannel chatbot (WhatsApp + Telegram)** as a FastAPI microservice that seamlessly integrates with an existing Django ERP system.
+Your task is to build a **production-ready AI Omnichannel chatbot (WhatsApp + Telegram)** as a FastAPI microservice that uses **LangGraph** for AI orchestration and seamlessly integrates with an existing Django ERP system.
 
 ---
 
@@ -13,10 +13,10 @@ Your task is to build a **production-ready AI Omnichannel chatbot (WhatsApp + Te
 Build a scalable, production-grade AI-powered chatbot that:
 
 - Supports **both** WhatsApp (via official Meta Cloud API) and Telegram (via official Bot API).
-- Uses a unified AI Router so the same business logic applies to users on any platform.
+- Uses a unified AI Router powered by **LangGraph** so the same business logic applies to users on any platform.
 - Integrates Google Gemini for conversational AI, vision, and audio (Free Tier).
 - Uses **no local database for business logic**; all real-time data (stock, orders, complaints) and long-term memory is fetched via API calls to the existing Django ERP.
-- Uses Redis for short-term session memory and rate-limiting.
+- Uses Redis for LangGraph checkpoint state persistence and rate-limiting.
 - Is containerized and deployable to a Ubuntu VPS using Docker.
 
 ---

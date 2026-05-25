@@ -1,27 +1,38 @@
 # 05 — Feature Specifications (Omnichannel & Django ERP)
 
-## 1. Memory System (Redis)
+## 1. Memory System (LangGraph Checkpointing)
 
-- **Storage**: Redis
-- **TTL**: 1 Hour
-- **Flow**: The session key is `<platform>:<user_id>` (e.g., `whatsapp:+62812...` or `telegram:123456`). Fetch the last 15 exchanges for this key, pass them to Gemini, and append the new response.
+- **Storage**: Redis (using `AsyncRedisSaver`)
+- **TTL**: Configured on Redis key eviction
+- **Flow**: The thread ID is mapped as `thread_id = f"{platform}:{user_id}"` (e.g., `whatsapp:+62812...` or `telegram:123456`). LangGraph automatically retrieves the full message history from the Redis checkpointer for this thread ID at the start of a run, and persists the updated graph state after execution completes.
 
 ---
 
-## 2. Function / Tool Calling (Gemini)
+## 2. Function / Tool Calling (LangGraph ToolNode)
 
-We map the existing Django ERP endpoints to Gemini Tools. The LLM does not need to know which platform the user is on.
+We define Python functions as tools using LangChain's `@tool` decorator and map them to the Gemini model using LangGraph's native `ToolNode`. The LLM does not need to know which platform the user is on.
 
-### Execution via HTTP
-When Gemini invokes `check_stock`, the FastAPI app executes:
+### Definition and Execution
 ```python
-async with httpx.AsyncClient() as client:
-    response = await client.get(
-        f"{ERP_BASE_URL}/stock",
-        params={"name": args["product_name"]},
-        headers={"Authorization": f"Bearer {ERP_API_TOKEN}"}
-    )
-    return response.json()
+from langchain_core.tools import tool
+
+@tool
+async def check_stock(product_name: str) -> dict:
+    """Check the real-time stock levels of a product in the ERP."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{ERP_BASE_URL}/stock",
+            params={"name": product_name},
+            headers={"Authorization": f"Bearer {ERP_API_TOKEN}"}
+        )
+        return response.json()
+```
+
+Tools are compiled into a `ToolNode`:
+```python
+from langgraph.prebuilt import ToolNode
+tools = [check_stock, place_order, search_knowledge_base]
+tool_node = ToolNode(tools)
 ```
 
 ---

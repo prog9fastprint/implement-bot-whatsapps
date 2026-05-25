@@ -30,19 +30,19 @@
 
 ---
 
-## Phase 2: AI Core (Gemini Integration)
+## Phase 2: AI Core (LangGraph & Gemini Integration)
 
-### Step 6: Gemini Integration
-- **Goal**: Basic AI conversation capability.
-- **Action**: Install `google-generativeai`. Route incoming `NormalizedMessage` objects to Gemini. Based on `platform`, use the right client to send the reply.
+### Step 6: AgentState & Model Configuration
+- **Goal**: Configure the LLM wrapper and define the state structure.
+- **Action**: Configure `ChatGoogleGenerativeAI` from `langchain-google-genai`. Define the `AgentState` TypedDict containing `messages`, `platform`, and `user_id`.
 
-### Step 7: Redis Session Memory
-- **Goal**: AI remembers the conversation.
-- **Action**: Store session history in Redis using the key `<platform>:<user_id>`. Load this history when prompting Gemini.
+### Step 7: LangGraph Workflow Construction
+- **Goal**: Build the core agent state graph.
+- **Action**: Initialize a `StateGraph(AgentState)`. Add the `ai` node, `tools` node (using `ToolNode`), and a `send_response` node. Define the conditional routing edge to loop back to `ai` when tools are called, or route to `send_response` and then `END`.
 
-### Step 8: Function Calling Setup
-- **Goal**: Gemini can decide to execute external tools.
-- **Action**: Define Python dictionaries for Gemini Tools. Handle the `function_call` response loop regardless of platform.
+### Step 8: Redis Checkpointer Integration
+- **Goal**: Automatically persist session state.
+- **Action**: Integrate `AsyncRedisSaver` (or standard Redis checkpointer) to save and resume graph states natively using a thread ID composed of `f"{platform}:{user_id}"`.
 
 ---
 

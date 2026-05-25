@@ -24,19 +24,25 @@ WhatsApp User                      Telegram User
 │  │     Converts payloads into generic NormalizedMsg  │  │
 │  └─────────────────────────┬─────────────────────────┘  │
 └────────────────────────────┼────────────────────────────┘
-                             │
-                             ▼
+                              │
+                              ▼
 ┌─────────────────────────────────────────────────────────┐
-│                      AI Orchestrator                    │
+│              LangGraph Agent (AI Layer)                 │
 │                                                         │
-│ 1. Fetch Session from Redis (using platform:user_id)    │
-│ 2. Call Gemini API (with memory + tools)                │
-│ 3. Call Django ERP APIs (if tool triggered)             │
-│ 4. Route Response back to the correct platform client   │
+│  START ──▶ AI Node ──▶ Conditional Edge ──▶ Tool Node   │
+│              │             │                   │        │
+│              │             ├─ (Complete)       │        │
+│              │             ▼                   │        │
+│              │       Send Node ──▶ END         │        │
+│              ▲                                 │        │
+│              └──────── Loop if needed ─────────┘        │
+│                                                         │
+│  State: {messages, platform, user_id}                   │
 └────────┬───────────────────┬───────────────────┬────────┘
          │                   │                   │
          ▼                   ▼                   ▼
-       Redis           Google Gemini       Django ERP APIs
+    Redis Saver        Google Gemini       Django ERP APIs
+ (Thread Checkpoints)
 ```
 
 ---
@@ -46,6 +52,7 @@ WhatsApp User                      Telegram User
 ### Webhook Server (FastAPI)
 - Exposes separate webhook endpoints for WhatsApp and Telegram.
 - Applies the correct security validation per platform.
+- Normalizes incoming payloads and hands off execution to the LangGraph runner asynchronously (via `BackgroundTasks` to avoid Meta/Telegram timeouts).
 
 ### Payload Normalizer
 - Extracts text, media IDs, and sender ID from the raw payloads.
@@ -59,13 +66,14 @@ WhatsApp User                      Telegram User
       media_id: Optional[str]
   ```
 
-### AI Orchestrator
-- **Platform Agnostic**: The AI logic only operates on `NormalizedMessage`. It doesn't care where the message came from.
-- Uses `platform` and `user_id` as the key for Redis session memory (e.g., `whatsapp:+62812...` or `telegram:1234567`).
+### LangGraph Agent
+- **Platform Agnostic**: The AI logic only operates on the `AgentState`. It doesn't care where the message came from.
+- **State Management**: Defines the schema (`AgentState`) containing message history and session metadata. Persists the conversation thread natively using an `AsyncRedisSaver` checkpointer.
+- **Routing Decisions**: Uses conditional edges to decide whether to call a tool (e.g. Django ERP API) or transition to the output stage.
 
 ### Platform Clients (`src/services/whatsapp.py` & `src/services/telegram.py`)
 - Provide uniform functions to send messages back.
-- Example: `send_message(normalized_msg, text)` which internally branches to the correct `httpx` POST request based on the platform.
+- Example: `send_message(platform, user_id, text)` which internally branches to the correct `httpx` POST request based on the platform. Can be called directly from the LangGraph "Send Node".
 
 ### Django ERP APIs (External Dependency)
 - The source of truth for all tools (checking stock, orders, RAG pgvector queries).
