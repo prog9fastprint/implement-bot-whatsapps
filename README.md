@@ -34,7 +34,8 @@ plan-implement-whatsapps-bot/
 
 | File | What It Covers |
 |------|---------------|
-| [walkthrough.md](walkthrough.md) | **Start Here**: Consolidated project overview & current status |
+| [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | **Start Here**: Complete project explanation, goals, flow, tech stack & status |
+| [walkthrough.md](walkthrough.md) | Consolidated Node.js implementation walkthrough |
 | [docs/01-core/00-context.md](docs/01-core/00-context.md) | AI role, non-negotiable rules, output format |
 | [docs/02-design/01-architecture.md](docs/02-design/01-architecture.md) | System diagram, component responsibilities |
 | [docs/01-core/02-tech-stack.md](docs/01-core/02-tech-stack.md) | Each technology, version, and reason for inclusion |
